@@ -1,5 +1,7 @@
+
 package com.jwtSecurity.config;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -9,24 +11,31 @@ import org.springframework.security.config.annotation.authentication.configurati
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
+
+import com.jwtSecurity.exceptionhandling.UserNotFound;
 import com.jwtSecurity.repository.UserRepository;
 
 import lombok.RequiredArgsConstructor;
-
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-
+import static org.springframework.security.config.http.SessionCreationPolicy.STATELESS;
 
 @Configuration
 @EnableWebSecurity
-@RequiredArgsConstructor
+//@RequiredArgsConstructor
 public class SecurityConfiguration {
 
+	@Autowired
 	private UserRepository userRepository;
+	
+	@Autowired
+	private JwtFilter jwtFilter;
+	
+	
 	
 	
 //the below is encoding the password,instead of store string password store this crypted
@@ -39,10 +48,8 @@ public PasswordEncoder pwdEncoder() {
 //USerDetailsService,it will call repository findByEmail method 
 @Bean
 public UserDetailsService userDetailsService() {
-	
-	return username ->userRepository.findByEmail(username)
-			.orElseThrow(()->new UsernameNotFoundException("userNotFoundInDB"));
-			
+    return username -> userRepository.findByEmail(username)
+            .orElseThrow(() -> new UserNotFound("User Not Found With This Email:"+username+""));
 }
 
 
@@ -71,9 +78,14 @@ public SecurityFilterChain config(HttpSecurity httpSecurity) throws Exception
 return	httpSecurity .csrf(AbstractHttpConfigurer::disable)
      .authorizeHttpRequests(req ->
              req.requestMatchers("/register")
-                     .permitAll()     
+                     .permitAll() 
+                     .requestMatchers("/login")
+                     .permitAll()
                      .anyRequest()
                      .authenticated())
+     .sessionManagement(session -> session.sessionCreationPolicy(STATELESS))
+     .authenticationProvider(authenticationProvider())
+     .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
      .build();
             
                    
